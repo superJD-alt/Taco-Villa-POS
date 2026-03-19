@@ -1952,40 +1952,55 @@ class _OrderPageState extends State<OrderPage> {
   Widget _botonAccion(IconData icono, String texto, VoidCallback onPressed) {
     bool estaDeshabilitado = (texto == "CUENTA" && _estaCerrandoCuenta);
 
+    // ✅ NUEVO: Detectar si debe estar en verde
+    final hayProductosSinEnviar = ordenes.any((o) => o['enviado'] != true);
+    final hayProductosEnOrden = ordenes.isNotEmpty;
+
+    bool estaActivo = false;
+    Color colorActivo = Colors.white;
+    Color colorIcono = Colors.black87;
+    Color colorBorde = Colors.grey.shade300;
+
+    if (texto == "COMANDA" && hayProductosSinEnviar) {
+      estaActivo = true;
+      colorActivo = Colors.green.shade500;
+      colorIcono = Colors.white;
+      colorBorde = Colors.green.shade700;
+    } else if (texto == "CUENTA" && hayProductosEnOrden && !estaDeshabilitado) {
+      estaActivo = true;
+      colorActivo = Colors.orange.shade600;
+      colorIcono = Colors.white;
+      colorBorde = Colors.orange.shade800;
+    }
+
     return ElevatedButton(
       onPressed: estaDeshabilitado ? null : onPressed,
       style: ButtonStyle(
         minimumSize: WidgetStateProperty.all(const Size(55, 30)),
         backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
-          // 🔧 NUEVO: Si está deshabilitado, color gris
-          if (estaDeshabilitado) {
-            return Colors.grey.shade400;
-          }
-          if (states.contains(WidgetState.pressed)) {
-            return Colors.blue.shade700;
-          }
+          if (estaDeshabilitado) return Colors.grey.shade400;
+          if (states.contains(WidgetState.pressed)) return Colors.blue.shade700;
+          if (estaActivo) return colorActivo;
           return Colors.white;
         }),
         foregroundColor: WidgetStateProperty.resolveWith<Color>((states) {
-          // 🔧 NUEVO: Si está deshabilitado, texto blanco
-          if (estaDeshabilitado) {
-            return Colors.white;
-          }
-          if (states.contains(WidgetState.pressed)) {
-            return Colors.white;
-          }
+          if (estaDeshabilitado) return Colors.white;
+          if (states.contains(WidgetState.pressed)) return Colors.white;
+          if (estaActivo) return colorIcono;
           return Colors.black87;
         }),
         elevation: WidgetStateProperty.resolveWith<double>((states) {
-          if (states.contains(WidgetState.pressed)) {
-            return 1;
-          }
+          if (states.contains(WidgetState.pressed)) return 1;
+          if (estaActivo) return 4;
           return 2;
         }),
         shape: WidgetStateProperty.all(
           RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(4),
-            side: BorderSide(color: Colors.grey.shade300, width: 1),
+            side: BorderSide(
+              color: estaActivo ? colorBorde : Colors.grey.shade300,
+              width: estaActivo ? 2 : 1,
+            ),
           ),
         ),
         padding: WidgetStateProperty.all(
@@ -1996,7 +2011,6 @@ class _OrderPageState extends State<OrderPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 🔧 NUEVO: Mostrar spinner si está deshabilitado
           if (estaDeshabilitado)
             const SizedBox(
               width: 14,
@@ -2767,6 +2781,7 @@ class _OrderPageState extends State<OrderPage> {
           "enviado": false,
           "categoria": producto['categoria'],
           "tiempo": 1,
+          "tipo": producto['tipo'] ?? 'comida',
         };
         ordenes.add(nuevo);
         productoSeleccionado = nuevo;
@@ -2970,9 +2985,11 @@ class _OrderPageState extends State<OrderPage> {
     }
 
     // Generar folio interno
-    final String numPedido =
-        'CMA-${DateTime.now().millisecondsSinceEpoch % 10000}';
-    mesaState.guardarFolioMesa(widget.numeroMesa, numPedido);
+    String numPedido = mesaState.obtenerFolioMesa(widget.numeroMesa) ?? '';
+    if (numPedido.isEmpty) {
+      numPedido = 'CMA-${DateTime.now().millisecondsSinceEpoch % 10000}';
+      mesaState.guardarFolioMesa(widget.numeroMesa, numPedido);
+    }
 
     // 2. Mostrar diálogo de confirmación
     showDialog(
@@ -3025,41 +3042,102 @@ class _OrderPageState extends State<OrderPage> {
     String numPedido,
   ) async {
     try {
-      // A. Preparar datos limpios para Firebase
-      // Convertimos los datos para asegurarnos que van limpios (sin referencias raras)
-      final List<Map<String, dynamic>> listaParaNube = productos.map((item) {
-        return {
-          'nombre': item['nombre'],
-          'cantidad': item['cantidad'],
-          'precio': item['precio'],
-          'nota': item['nota'] ?? "",
-          'categoria': item['categoria'] ?? "General",
-          'tiempo': item['tiempo'] ?? 1,
-          // Helper para que la central sepa rápido si es barra
-          'esBarra': _esProductoDeBarra(item['categoria']),
-        };
-      }).toList();
+      // ✅ SEPARAR productos en cocina y barra
+      final productosCocina = productos
+          .where((item) => !_esProductoDeBarra(item['categoria']))
+          .toList();
 
-      // B. Subir a la colección 'tickets_pendientes'
-      // Esta es la colección que la Tablet Central estará escuchando
-      await FirebaseFirestore.instance.collection('tickets_pendientes').add({
-        'numeroMesa': widget.numeroMesa,
-        'comensales': widget.comensales,
-        'mesero': mesaState.meseroActual.isNotEmpty
-            ? mesaState.meseroActual
-            : 'Mesero',
-        'folio': numPedido,
-        'productos': listaParaNube,
-        'fecha': FieldValue.serverTimestamp(),
-        'impreso': false, // IMPORTANTE: La bandera para la central
-      });
+      final productosBarra = productos
+          .where((item) => _esProductoDeBarra(item['categoria']))
+          .toList();
 
-      // C. Actualizar UI Local (Ponerlos como enviados en la tablet del mesero)
+      final batch = FirebaseFirestore.instance.batch();
+      final collection = FirebaseFirestore.instance.collection(
+        'tickets_pendientes',
+      );
+
+      // ✅ Ticket de COCINA (solo si hay productos de cocina)
+      if (productosCocina.isNotEmpty) {
+        final listacocina = productosCocina
+            .map(
+              (item) => {
+                'nombre': item['nombre'],
+                'cantidad': item['cantidad'],
+                'precio': item['precio'],
+                'nota': item['nota'] ?? "",
+                'categoria': item['categoria'] ?? "General",
+                'tiempo': item['tiempo'] ?? 1,
+                'esBarra': false,
+              },
+            )
+            .toList();
+
+        batch.set(collection.doc(), {
+          'numeroMesa': widget.numeroMesa,
+          'comensales': widget.comensales,
+          'mesero': mesaState.meseroActual.isNotEmpty
+              ? mesaState.meseroActual
+              : 'Mesero',
+          'folio': numPedido,
+          'productos': listacocina,
+          'destino': 'COCINA', // ← La central usa este campo
+          'fecha': FieldValue.serverTimestamp(),
+          'impreso': false,
+        });
+      }
+
+      // ✅ Ticket de BARRA (solo si hay bebidas)
+      if (productosBarra.isNotEmpty) {
+        final listaBarra = productosBarra
+            .map(
+              (item) => {
+                'nombre': item['nombre'],
+                'cantidad': item['cantidad'],
+                'precio': item['precio'],
+                'nota': item['nota'] ?? "",
+                'categoria': item['categoria'] ?? "General",
+                'tiempo': item['tiempo'] ?? 1,
+                'esBarra': true,
+              },
+            )
+            .toList();
+
+        batch.set(collection.doc(), {
+          'numeroMesa': widget.numeroMesa,
+          'comensales': widget.comensales,
+          'mesero': mesaState.meseroActual.isNotEmpty
+              ? mesaState.meseroActual
+              : 'Mesero',
+          'folio': numPedido,
+          'productos': listaBarra,
+          'destino': 'BARRA', // ← La central usa este campo
+          'fecha': FieldValue.serverTimestamp(),
+          'impreso': false,
+        });
+      }
+
+      // ✅ Subir ambos de una sola vez
+      await batch.commit();
+
+      // Actualizar UI local (igual que antes)
       setState(() {
-        // 1. Agregamos al historial de la mesa
-        mesaState.agregarPedido(widget.numeroMesa, listaParaNube);
+        mesaState.agregarPedido(
+          widget.numeroMesa,
+          productos
+              .map(
+                (item) => {
+                  'nombre': item['nombre'],
+                  'cantidad': item['cantidad'],
+                  'precio': item['precio'],
+                  'nota': item['nota'] ?? "",
+                  'categoria': item['categoria'] ?? "General",
+                  'tiempo': item['tiempo'] ?? 1,
+                  'esBarra': _esProductoDeBarra(item['categoria']),
+                },
+              )
+              .toList(),
+        );
 
-        // 2. Marcamos como enviados en la lista visual actual
         for (var item in ordenes) {
           if (item['enviado'] != true) {
             item['enviado'] = true;
@@ -3068,13 +3146,19 @@ class _OrderPageState extends State<OrderPage> {
       });
 
       if (mounted) {
+        // ✅ Mensaje informativo según qué se envió
+        String destinos = [
+          if (productosCocina.isNotEmpty) '🍳 Cocina',
+          if (productosBarra.isNotEmpty) '🍺 Barra',
+        ].join(' y ');
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
-              children: const [
-                Icon(Icons.cloud_done, color: Colors.white),
-                SizedBox(width: 10),
-                Text("Pedido enviado a la Central Correctamente"),
+              children: [
+                const Icon(Icons.cloud_done, color: Colors.white),
+                const SizedBox(width: 10),
+                Text("Pedido enviado a $destinos"),
               ],
             ),
             backgroundColor: Colors.green,
@@ -4618,7 +4702,9 @@ class _OrderPageState extends State<OrderPage> {
     buffer.writeln('================================');
 
     // INFORMACION DE LA CUENTA
-    final folioCorto = cuenta.id.substring(0, 8).toUpperCase();
+    final folioCorto = (cuenta.folio != null && cuenta.folio!.isNotEmpty)
+        ? cuenta.folio!
+        : cuenta.id.substring(0, 8).toUpperCase();
     buffer.writeln('FOLIO: $folioCorto  MESA: ${cuenta.numeroMesa}');
     buffer.writeln('MESERO: ${sinAcentos(cuenta.mesero)}');
     buffer.writeln('COMENSALES: ${cuenta.comensales}');

@@ -85,7 +85,7 @@ Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
               children: [
                 pw.Expanded(
                   child: pw.Text(
-                    'FOLIO: ${cuenta.id.substring(0, 8)}',
+                    'FOLIO: ${cuenta.folio ?? cuenta.id.substring(0, 8).toUpperCase()}',
                     style: const pw.TextStyle(fontSize: 8),
                   ),
                 ),

@@ -107,21 +107,60 @@ class PrinterManager {
 
                 final int mesa = data['numeroMesa'] ?? 0;
                 final String mesero = data['mesero'] ?? 'Sin nombre';
-                final List productos = data['productos'] ?? [];
+                final String folio = data['folio'] ?? '';
+                final List<Map<String, dynamic>> productos =
+                    (data['productos'] as List)
+                        .map((p) => Map<String, dynamic>.from(p))
+                        .toList();
 
                 print("🆕 [CENTRAL] Pedido detectado Mesa: $mesa");
 
-                // Marcar como impreso antes de imprimir
+                // Marcar como impreso ANTES de imprimir
                 await change.doc.reference.update({'impreso': true});
 
-                // ✅ Un único ticket con TODOS los productos (cocina + barra)
-                final contenido = _formatearTicket(
-                  mesa,
-                  mesero,
-                  productos.map((p) => Map<String, dynamic>.from(p)).toList(),
-                );
+                // ✅ Separar productos
+                final productosCocina = productos
+                    .where((p) => p.esCocina)
+                    .toList();
+                final productosBarra = productos
+                    .where((p) => p.esBarra)
+                    .toList();
 
-                await imprimirComanda(contenido: contenido);
+                // ✅ Ticket de COCINA
+                if (productosCocina.isNotEmpty) {
+                  print(
+                    "🍳 Imprimiendo ticket COCINA (${productosCocina.length} productos)...",
+                  );
+                  final ticketCocina = _formatearTicketDestino(
+                    mesa: mesa,
+                    mesero: mesero,
+                    folio: folio,
+                    destino: 'COCINA',
+                    productos: productosCocina,
+                  );
+                  await imprimirComanda(contenido: ticketCocina);
+                  print("✅ Ticket COCINA impreso.");
+                }
+
+                // ✅ Ticket de BARRA (separado del de cocina)
+                if (productosBarra.isNotEmpty) {
+                  print(
+                    "🍺 Imprimiendo ticket BARRA (${productosBarra.length} productos)...",
+                  );
+                  // Pequeña pausa entre tickets para que la impresora no se sature
+                  if (productosCocina.isNotEmpty) {
+                    await Future.delayed(const Duration(milliseconds: 1500));
+                  }
+                  final ticketBarra = _formatearTicketDestino(
+                    mesa: mesa,
+                    mesero: mesero,
+                    folio: folio,
+                    destino: 'BARRA',
+                    productos: productosBarra,
+                  );
+                  await imprimirComanda(contenido: ticketBarra);
+                  print("✅ Ticket BARRA impreso.");
+                }
 
                 print("✅ [CENTRAL] Impresión completada.");
               } catch (e) {
@@ -134,43 +173,50 @@ class PrinterManager {
         });
   }
 
-  String _formatearTicket(
-    int mesa,
-    String mesero,
-    List<Map<String, dynamic>> productos,
-  ) {
-    // Separar por sección para organizar el ticket visualmente
-    final cocina = productos.where((p) => p.esCocina).toList();
-    final barra = productos.where((p) => p.esBarra).toList();
+  String _formatearTicketDestino({
+    required int mesa,
+    required String mesero,
+    required String folio,
+    required String destino,
+    required List<Map<String, dynamic>> productos,
+  }) {
+    final hora = DateTime.now().toString().substring(11, 16);
+    final fecha = DateTime.now().toString().substring(0, 10);
 
     String buffer = "================================\n";
-    buffer += "          COMANDA\n";
+
+    // Encabezado diferente según destino
+    if (destino == 'COCINA') {
+      buffer += "   🍳      COCINA       🍳\n";
+    } else {
+      buffer += "   🍺       BARRA       🍺\n";
+    }
+
     buffer += "================================\n";
-    buffer += "MESA: $mesa\n";
+    buffer += "PEDIDO: $folio\n";
+    buffer += "MESA:   $mesa\n";
     buffer += "MESERO: $mesero\n";
-    buffer += "FECHA: ${DateTime.now().toString().substring(0, 16)}\n";
+    buffer += "FECHA:  $fecha  $hora\n";
+    buffer += "--------------------------------\n";
+    buffer += "CANT  PRODUCTO\n";
+    buffer += "--------------------------------\n";
 
-    if (cocina.isNotEmpty) {
-      buffer += "--------  COCINA  --------------\n";
-      for (var p in cocina) {
-        buffer += "${p['cantidad']}x ${p['nombre']}\n";
-        if (p['nota'] != null && p['nota'].toString().isNotEmpty) {
-          buffer += "   NOTA: ${p['nota']}\n";
-        }
-      }
-    }
+    for (var p in productos) {
+      final cantidad = p['cantidad'].toString().padLeft(3);
+      final nombre = (p['nombre'] as String).toUpperCase();
+      buffer += "$cantidad   $nombre\n";
 
-    if (barra.isNotEmpty) {
-      buffer += "--------  BARRA  ---------------\n";
-      for (var p in barra) {
-        buffer += "${p['cantidad']}x ${p['nombre']}\n";
-        if (p['nota'] != null && p['nota'].toString().isNotEmpty) {
-          buffer += "   NOTA: ${p['nota']}\n";
-        }
+      final nota = p['nota']?.toString() ?? '';
+      if (nota.isNotEmpty) {
+        buffer += "     *** NOTA: $nota ***\n";
       }
     }
 
     buffer += "================================\n";
+    buffer +=
+        "TOTAL ITEMS: ${productos.fold(0, (sum, p) => sum + (p['cantidad'] as int))}\n";
+    buffer += "================================\n";
+
     return buffer;
   }
 
@@ -455,15 +501,19 @@ Fecha: ${DateTime.now()}
 
 extension ProductoExtension on Map<String, dynamic> {
   bool get esBarra {
+    final tipo = (this['tipo'] as String?)?.toLowerCase() ?? '';
+    if (tipo == 'bebida') return true;
+    if (tipo == 'comida') return false;
+
+    if (this['esBarra'] == true) return true;
+
     final categoria = (this['categoria'] as String?)?.toLowerCase() ?? '';
     return categoria.contains('cerveza') ||
-        categoria.contains('brandy') ||
-        categoria.contains('tequila') ||
-        categoria.contains('mezcales') ||
-        categoria.contains('sin alcohol') ||
-        categoria.contains('cocteleria') ||
+        categoria.contains('aguas frescas') ||
+        categoria.contains('preparados') ||
         categoria.contains('vinos') ||
-        categoria.contains('whisky') ||
+        categoria.contains('mezcal y cafe') ||
+        categoria.contains('refrescos') ||
         categoria.contains('bebidas');
   }
 

@@ -661,7 +661,7 @@ class _CustomTableState extends State<CustomTable> {
             cantidadPersonas: 4,
             ancho: 180,
             alto: 90,
-            numeroMesa: 7,
+            numeroMesa: 4,
           ),
         ),
         Positioned(
@@ -671,7 +671,7 @@ class _CustomTableState extends State<CustomTable> {
             cantidadPersonas: 4,
             ancho: 90,
             alto: 90,
-            numeroMesa: 2,
+            numeroMesa: 3,
           ),
         ),
         Positioned(
@@ -681,7 +681,7 @@ class _CustomTableState extends State<CustomTable> {
             cantidadPersonas: 4,
             ancho: 90,
             alto: 90,
-            numeroMesa: 3,
+            numeroMesa: 2,
           ),
         ),
         Positioned(
@@ -691,7 +691,7 @@ class _CustomTableState extends State<CustomTable> {
             cantidadPersonas: 4,
             ancho: 90,
             alto: 90,
-            numeroMesa: 4,
+            numeroMesa: 1,
           ),
         ),
         // ── Fila 2 ──────────────────────────────────────────────
@@ -702,7 +702,7 @@ class _CustomTableState extends State<CustomTable> {
             cantidadPersonas: 4,
             ancho: 170,
             alto: 90,
-            numeroMesa: 6,
+            numeroMesa: 7,
           ),
         ),
         Positioned(
@@ -712,7 +712,7 @@ class _CustomTableState extends State<CustomTable> {
             cantidadPersonas: 6,
             ancho: 180,
             alto: 90,
-            numeroMesa: 8,
+            numeroMesa: 6,
           ),
         ),
         Positioned(
@@ -722,7 +722,7 @@ class _CustomTableState extends State<CustomTable> {
             cantidadPersonas: 4,
             ancho: 90,
             alto: 90,
-            numeroMesa: 1,
+            numeroMesa: 5,
           ),
         ),
         // ── Fila 3 ──────────────────────────────────────────────
@@ -733,7 +733,7 @@ class _CustomTableState extends State<CustomTable> {
             cantidadPersonas: 4,
             ancho: 220,
             alto: 90,
-            numeroMesa: 5,
+            numeroMesa: 8,
           ),
         ),
       ],

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'panel_meseros.dart';
 import 'panel_admin.dart';
+import 'mesa_state.dart';
 
 class LoginPos extends StatefulWidget {
   const LoginPos({super.key});
@@ -115,6 +116,8 @@ class _LoginPosState extends State<LoginPos> {
 
       await userCredential.user!.updateDisplayName(nombreMesero);
 
+      MesaState().establecerMesero(nombreMesero);
+
       debugPrint('✅ Login exitoso: $nombreMesero | Rol: $userRole');
 
       if (!mounted) return;
@@ -162,6 +165,8 @@ class _LoginPosState extends State<LoginPos> {
       if (mounted) setState(() => loading = false);
     }
   }
+
+  //mesaState.setMeseroActual(nombreDelUsuario);
 
   @override
   Widget build(BuildContext context) {

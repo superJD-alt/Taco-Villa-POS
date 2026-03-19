@@ -63,7 +63,7 @@ class _AuthDialogState extends State<AuthDialog> {
 
     try {
       // Construir el correo completo con los 3 dígitos ingresados
-      final correoCompleto = '$usuario@pv.com';
+      final correoCompleto = '$usuario@tv.com';
 
       // Buscar el usuario en Firestore con el correo completo
       final QuerySnapshot usuariosSnapshot = await FirebaseFirestore.instance
@@ -165,7 +165,7 @@ class _AuthDialogState extends State<AuthDialog> {
               ],
               decoration: InputDecoration(
                 labelText: 'Correo (3 dígitos)',
-                hintText: 'Ej: 123 (de 123@pv.com)',
+                //hintText: 'Ej: 123 (de 123@pv.com)',
                 prefixIcon: const Icon(Icons.email),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
