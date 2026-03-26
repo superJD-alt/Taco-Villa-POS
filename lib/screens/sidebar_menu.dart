@@ -18,20 +18,17 @@ class SidebarMenu extends StatelessWidget {
     required this.onLogout,
   }) : super(key: key);
 
-  // ✅ NUEVO: Cierra sesión actualizando Firestore antes de salir
   Future<void> _handleLogout(BuildContext context) async {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
 
       if (uid != null) {
-        // Buscar el documento del usuario por su UID
         final query = await FirebaseFirestore.instance
             .collection('usuarios')
             .where('uid', isEqualTo: uid)
             .get();
 
         if (query.docs.isNotEmpty) {
-          // Marcar sesión como inactiva
           await FirebaseFirestore.instance
               .collection('usuarios')
               .doc(query.docs.first.id)
@@ -42,7 +39,6 @@ class SidebarMenu extends StatelessWidget {
       debugPrint('❌ Error al cerrar sesión en Firestore: $e');
     }
 
-    // Llama al logout del widget padre (navega al login, etc.)
     onLogout();
   }
 
@@ -50,28 +46,14 @@ class SidebarMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 250,
-      color: const Color(0xFF1E293B),
+      color: const Color(0xFF14532D),
       child: Column(
         children: [
-          // Logo/Header
-          Container(
-            padding: const EdgeInsets.all(24),
-            child: Row(
-              children: const [
-                Icon(Icons.point_of_sale, color: Colors.white, size: 32),
-                SizedBox(width: 12),
-                Text(
-                  ' Taco Villa',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(color: Color(0xFF334155), height: 1),
+          // ✅ NUEVO HEADER CON LOGO
+          _buildLogo(),
+
+          const Divider(color: Color(0xFF166534), height: 1),
+
           // Menu Items
           Expanded(
             child: ListView(
@@ -87,8 +69,90 @@ class SidebarMenu extends StatelessWidget {
             ),
           ),
 
-          // Perfil de Usuario con Menú Desplegable (Cerrar Sesión)
+          // Perfil de Usuario
           _buildUserProfileMenu(context),
+        ],
+      ),
+    );
+  }
+
+  // ✅ NUEVO: Header estético con logo + nombre
+  Widget _buildLogo() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+      decoration: const BoxDecoration(color: Color(0xFF14532D)),
+      child: Column(
+        children: [
+          // Logo circular con borde decorativo
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFF16A34A), width: 2.5),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF16A34A).withOpacity(0.4),
+                  blurRadius: 12,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: ClipOval(
+              child: Image.asset(
+                'assets/images/tacoVilla.jpg',
+                width: 80,
+                height: 80,
+                fit: BoxFit.cover,
+                // Si la imagen no carga, mostrar ícono fallback
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    width: 80,
+                    height: 80,
+                    color: const Color(0xFF166534),
+                    child: const Icon(
+                      Icons.restaurant_menu,
+                      color: Colors.white70,
+                      size: 40,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Nombre de la empresa
+          const Text(
+            'Taco Villa',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
+          ),
+
+          const SizedBox(height: 4),
+
+          // Subtítulo decorativo
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            decoration: BoxDecoration(
+              color: const Color(0xFF16A34A).withOpacity(0.3),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Text(
+              'Sistema POS',
+              style: TextStyle(
+                color: Color(0xFF86EFAC),
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -198,8 +262,6 @@ class SidebarMenu extends StatelessWidget {
           ),
         ),
       ],
-
-      // ✅ CAMBIO: antes solo llamaba onLogout(), ahora llama _handleLogout()
       onSelected: (String result) {
         if (result == 'logout') {
           _handleLogout(context);
