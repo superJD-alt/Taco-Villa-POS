@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SidebarMenu extends StatelessWidget {
   final int selectedIndex;
@@ -15,6 +17,34 @@ class SidebarMenu extends StatelessWidget {
     required this.correoUsuario,
     required this.onLogout,
   }) : super(key: key);
+
+  // ✅ NUEVO: Cierra sesión actualizando Firestore antes de salir
+  Future<void> _handleLogout(BuildContext context) async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+
+      if (uid != null) {
+        // Buscar el documento del usuario por su UID
+        final query = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .where('uid', isEqualTo: uid)
+            .get();
+
+        if (query.docs.isNotEmpty) {
+          // Marcar sesión como inactiva
+          await FirebaseFirestore.instance
+              .collection('usuarios')
+              .doc(query.docs.first.id)
+              .update({'sesionActiva': false});
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Error al cerrar sesión en Firestore: $e');
+    }
+
+    // Llama al logout del widget padre (navega al login, etc.)
+    onLogout();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +99,7 @@ class SidebarMenu extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFF3B82F6) : Colors.transparent,
+        color: isSelected ? const Color(0xFF16A34A) : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
       ),
       child: ListTile(
@@ -91,22 +121,17 @@ class SidebarMenu extends StatelessWidget {
 
   Widget _buildUserProfileMenu(BuildContext context) {
     return PopupMenuButton<String>(
-      // 1. EL WIDGET QUE SE MUESTRA SIEMPRE - ✅ AUMENTADO DE TAMAÑO
       child: Container(
-        padding: const EdgeInsets.all(50), // ✅ Aumentado de 16 a 20
+        padding: const EdgeInsets.all(50),
         child: InkWell(
           child: Row(
             children: [
               const CircleAvatar(
-                radius: 24, // ✅ Avatar más grande (default es 20)
-                backgroundColor: Color(0xFF3B82F6),
-                child: Icon(
-                  Icons.person,
-                  color: Colors.white,
-                  size: 28, // ✅ Icono más grande
-                ),
+                radius: 24,
+                backgroundColor: Color(0xFF16A34A),
+                child: Icon(Icons.person, color: Colors.white, size: 28),
               ),
-              const SizedBox(width: 14), // ✅ Más espacio
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -116,29 +141,25 @@ class SidebarMenu extends StatelessWidget {
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
-                        fontSize:
-                            16, // ✅ Nombre más grande (antes no tenía fontSize definido)
+                        fontSize: 16,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(
-                      height: 4,
-                    ), // ✅ Espacio entre nombre y "Opciones"
+                    const SizedBox(height: 4),
                     Row(
                       children: const [
                         Text(
                           'Opciones ',
                           style: TextStyle(
                             color: Color(0xFF94A3B8),
-                            fontSize:
-                                14, // ✅ "Opciones" más grande (antes era 12)
+                            fontSize: 14,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
                         Icon(
                           Icons.arrow_drop_down,
                           color: Color(0xFF94A3B8),
-                          size: 20, // ✅ Icono flecha más grande (antes era 16)
+                          size: 20,
                         ),
                       ],
                     ),
@@ -149,57 +170,39 @@ class SidebarMenu extends StatelessWidget {
           ),
         ),
       ),
-
-      // 2. LAS OPCIONES QUE SE DESPLIEGAN - ✅ AUMENTADO EL TAMAÑO
       itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
         PopupMenuItem<String>(
           enabled: false,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4), // ✅ Más padding
+            padding: const EdgeInsets.symmetric(vertical: 4),
             child: Text(
               correoUsuario,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14, // ✅ Texto más grande
-              ),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             ),
           ),
         ),
         const PopupMenuDivider(),
-
-        // ✅ OPCIÓN DE CERRAR SESIÓN MÁS GRANDE
         PopupMenuItem<String>(
           value: 'logout',
-          height: 60, // ✅ Altura aumentada de 48 a 60
-          padding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 12, // ✅ Más padding vertical
-          ),
+          height: 60,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           child: Row(
             children: const [
-              Icon(
-                Icons.logout,
-                color: Colors.red,
-                size: 24, // ✅ Icono más grande (default es 20)
-              ),
-              SizedBox(width: 16), // ✅ Más espacio entre icono y texto
+              Icon(Icons.logout, color: Colors.red, size: 24),
+              SizedBox(width: 16),
               Text(
                 'Cerrar Sesión',
-                style: TextStyle(
-                  fontSize: 16, // ✅ Texto más grande (default es 14)
-                  fontWeight: FontWeight.w500, // ✅ Texto más grueso
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
               ),
             ],
           ),
         ),
       ],
 
-      // 3. ✅ EL LISTENER QUE EJECUTA LA ACCIÓN
+      // ✅ CAMBIO: antes solo llamaba onLogout(), ahora llama _handleLogout()
       onSelected: (String result) {
         if (result == 'logout') {
-          // Llama a la función onLogout proporcionada por el widget padre (Dashboard)
-          onLogout();
+          _handleLogout(context);
         }
       },
     );
